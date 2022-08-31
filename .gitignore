@@ -1,4 +1,6 @@
+mini
 subject.txt
+*.*.c
 
 # Prerequisites
 *.d

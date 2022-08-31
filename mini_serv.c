@@ -15,11 +15,9 @@ typedef struct s_client {
 } t_client;
 
 t_client* g_clients = NULL;
-
 int sock_fd, g_id = 0;
 fd_set curr_sock, fd_read, fd_write;
-char msg[64];
-char str[64 * 4096], tmp[64 * 4096], buf[64 * (4096 + 1)];
+char msg[64], str[64 * 4096], tmp[64 * 4096], buf[64 * (4096 + 1)];
 
 void write_fd(int fd, char* str) {
   write(fd, str, strlen(str));
@@ -66,17 +64,18 @@ void send_all_except(int fd, char* msg) {
 }
 
 // 새 클라이언트 만들어 리스트에 추가
-int add_client(int fd) {
+int insert_client(int fd) {
   t_client *curs = g_clients, *new;
-  t_client tmp = {
+  t_client cons = {
       .id = g_id++,
       .fd = fd,
       .next = NULL,
   };
 
-  if (!(new = calloc(0, sizeof(t_client))))
+  if (!(new = malloc(sizeof(t_client))))
     fatal();
-  *new = tmp;
+  *new = cons;
+
   if (!g_clients) {
     g_clients = new;
   } else {
@@ -112,7 +111,7 @@ void accept_client() {
   if ((client_fd = accept(sock_fd, (struct sockaddr*)&clientaddr, &len)) < 0)
     fatal();
 
-  sprintf(msg, "server: client %d just arrived\n", add_client(client_fd));
+  sprintf(msg, "server: client %d just arrived\n", insert_client(client_fd));
   send_all_except(client_fd, msg);
   FD_SET(client_fd, &curr_sock);
 }
@@ -148,7 +147,7 @@ int main(int ac, char* av[]) {
   addr.sin_addr.s_addr = inet_addr("127.0.0.1");
   addr.sin_port = htons(port);
 
-  // 소켓 생성 -> 소켓 fd에 주소 바인드 -> 연결
+  // 소켓 생성 -> 소켓 fd에 주소 바인드 -> 듣기
   if ((sock_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0
       || bind(sock_fd, (const struct sockaddr*)&addr, sizeof(addr)) < 0
       || listen(sock_fd, 0) < 0)
