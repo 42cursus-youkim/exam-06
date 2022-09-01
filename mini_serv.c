@@ -103,7 +103,7 @@ int delete_client(int fd) {
   return id;
 }
 
-void accept_client() {
+void accept_connection(void) {
   struct sockaddr_in clientaddr;
   socklen_t len = sizeof(clientaddr);
   int client_fd;
@@ -111,9 +111,18 @@ void accept_client() {
   if ((client_fd = accept(sock_fd, (struct sockaddr*)&clientaddr, &len)) < 0)
     fatal();
 
+  memset(&msg, 0, 64);
   sprintf(msg, "server: client %d just arrived\n", insert_client(client_fd));
   send_all_except(client_fd, msg);
   FD_SET(client_fd, &curr_sock);
+}
+
+void close_connection(int fd) {
+  memset(&msg, 0, 64);
+  sprintf(msg, "server: client %d just left\n", delete_client(fd));
+  send_all_except(fd, msg);
+  FD_CLR(fd, &curr_sock);
+  close(fd);
 }
 
 void receive_msg(int fd) {
@@ -122,11 +131,11 @@ void receive_msg(int fd) {
   for (int i = 0; str[i]; i++) {
     tmp[j++] = str[i];
     if (str[i] == '\n') {
+      memset(&buf, 0, strlen(buf));
       sprintf(buf, "client %d: %s", get_id(fd), tmp);
       send_all_except(fd, buf);
       j = 0;
       memset(&tmp, 0, strlen(tmp));
-      memset(&buf, 0, strlen(buf));
     }
   }
   memset(&str, 0, strlen(str));
@@ -169,8 +178,7 @@ int main(int ac, char* av[]) {
     for (int fd = 0; fd <= get_max_fd(); fd++) {
       if (FD_ISSET(fd, &fd_read)) {
         if (fd == sock_fd) {
-          memset(&msg, 0, sizeof(msg));
-          accept_client();
+          accept_connection();
           break;
         } else {
           int len = 1000;
@@ -178,15 +186,11 @@ int main(int ac, char* av[]) {
             if ((len = recv(fd, str + strlen(str), 1000, 0)) <= 0)
               break;
           }
-          if (len <= 0) {
-            memset(&msg, 0, sizeof(msg));
-            sprintf(msg, "server: client %d just left\n", delete_client(fd));
-            send_all_except(fd, msg);
-            FD_CLR(fd, &curr_sock);
-            close(fd);
-            break;
-          } else {
+          if (len > 0) {
             receive_msg(fd);
+          } else {
+            close_connection(fd);
+            break;
           }
         }
       }
