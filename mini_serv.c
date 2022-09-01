@@ -125,7 +125,7 @@ void close_connection(int fd) {
   close(fd);
 }
 
-void receive_msg(int fd) {
+void broadcast_msg(int fd) {
   int j = 0;
 
   for (int i = 0; str[i]; i++) {
@@ -139,6 +139,15 @@ void receive_msg(int fd) {
     }
   }
   memset(&str, 0, strlen(str));
+}
+
+int receive_msg(int fd) {
+  int len = 1000;
+  while (len == 1000 || str[strlen(str) - 1] != '\n') {
+    if ((len = recv(fd, str + strlen(str), 1000, 0)) <= 0)
+      break;
+  }
+  return len;
 }
 
 int main(int ac, char* av[]) {
@@ -181,13 +190,9 @@ int main(int ac, char* av[]) {
           accept_connection();
           break;
         } else {
-          int len = 1000;
-          while (len == 1000 || str[strlen(str) - 1] != '\n') {
-            if ((len = recv(fd, str + strlen(str), 1000, 0)) <= 0)
-              break;
-          }
+          int len = receive_msg(fd);
           if (len > 0) {
-            receive_msg(fd);
+            broadcast_msg(fd);
           } else {
             close_connection(fd);
             break;
