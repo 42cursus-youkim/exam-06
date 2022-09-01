@@ -17,10 +17,10 @@ typedef struct s_client {
 t_client* g_clients = NULL;
 int sock_fd, g_id = 0;
 fd_set curr_sock, fd_read, fd_write;
-char msg[64], str[64 * 4096], tmp[64 * 4096], buf[64 * (4096 + 1)];
+char str[64 * 4096], tmp[64 * 4096], buf[64 * (4096 + 1)];
 
-void write_fd(int fd, char* str) {
-  write(fd, str, strlen(str));
+void write_fd(int fd, char* msg) {
+  write(fd, msg, strlen(msg));
 }
 void fatal() {
   write_fd(2, "Fatal error\n");
@@ -111,16 +111,18 @@ void accept_connection(void) {
   if ((client_fd = accept(sock_fd, (struct sockaddr*)&clientaddr, &len)) < 0)
     fatal();
 
-  memset(&msg, 0, 64);
-  sprintf(msg, "server: client %d just arrived\n", insert_client(client_fd));
-  send_all_except(client_fd, msg);
+  memset(&buf, 0, 64);
+  sprintf(buf, "server: client %d just arrived\n", insert_client(client_fd));
+  send_all_except(client_fd, buf);
+
   FD_SET(client_fd, &curr_sock);
 }
 
 void close_connection(int fd) {
-  memset(&msg, 0, 64);
-  sprintf(msg, "server: client %d just left\n", delete_client(fd));
-  send_all_except(fd, msg);
+  memset(&buf, 0, 64);
+  sprintf(buf, "server: client %d just left\n", delete_client(fd));
+  send_all_except(fd, buf);
+
   FD_CLR(fd, &curr_sock);
   close(fd);
 }
@@ -134,6 +136,7 @@ void broadcast_msg(int fd) {
       memset(&buf, 0, strlen(buf));
       sprintf(buf, "client %d: %s", get_id(fd), tmp);
       send_all_except(fd, buf);
+
       j = 0;
       memset(&tmp, 0, strlen(tmp));
     }
@@ -151,21 +154,20 @@ int receive_msg(int fd) {
 }
 
 int main(int ac, char* av[]) {
-  // 포트 초기화
+  // 인자 개수 확인
   if (ac != 2) {
     write_fd(2, "Wrong number of arguments\n");
     exit(1);
   }
-  const uint16_t port = atoi(av[1]);
 
-  // 주소 초기화
+  // 주소 및 포트 초기화
   struct sockaddr_in addr;
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-  addr.sin_port = htons(port);
+  addr.sin_port = htons(atoi(av[1]));
 
-  // 소켓 생성 -> 소켓 fd에 주소 바인드 -> 듣기
+  // 소켓 생성 -> 소켓 fd에 주소 바인드 -> 소켓에서 듣기
   if ((sock_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0
       || bind(sock_fd, (const struct sockaddr*)&addr, sizeof(addr)) < 0
       || listen(sock_fd, 0) < 0)
@@ -181,21 +183,23 @@ int main(int ac, char* av[]) {
 
   // 메인 루프
   while (true) {
+    // 듣기/쓰기 소켓 목록 초기화
     fd_write = fd_read = curr_sock;
+    // 들어온 이벤트가 생길 때까지 대기
     if (select(get_max_fd() + 1, &fd_read, &fd_write, NULL, NULL) < 0)
       continue;
     for (int fd = 0; fd <= get_max_fd(); fd++) {
-      if (FD_ISSET(fd, &fd_read)) {
-        if (fd == sock_fd) {
-          accept_connection();
-          break;
-        } else {
-          int len = receive_msg(fd);
+      if (FD_ISSET(fd, &fd_read)) {  // 이벤트가 생긴 파일 식별자만 골라서
+        if (fd == sock_fd) {  // 소켓 식별자 자체에서 생긴 이벤트면
+          accept_connection();  // 연결이 들어온것이니 사용자 생성
+          break;                // 연결 목록이 변했으니 새로고침
+        } else {  // 사용자 소켓 중 하나에서 생긴 이벤트면
+          int len = receive_msg(fd);  // 메시지 수신
           if (len > 0) {
-            broadcast_msg(fd);
+            broadcast_msg(fd);  // 다른 사용자에게 전부 송신
           } else {
-            close_connection(fd);
-            break;
+            close_connection(fd); // 연결이 끊겼으니 사용자 제거
+            break;  // 연결 목록이 변했으니 새로고침
           }
         }
       }
