@@ -1,6 +1,6 @@
 TARGET := mini
 
-SRC := mini_serv.c
+SRC := mini_serv.test.c #mini_serv.c
 OBJ := $(SRC:.c=.o)
 
 CFLAGS := -Wall -Wextra -Werror -Wpedantic -std=c99 -g
