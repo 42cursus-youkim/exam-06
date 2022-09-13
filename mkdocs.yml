@@ -1,0 +1,14 @@
+site_name: Exam 06
+theme:
+  name: material
+  palette:
+    primary: deep orange
+    accent: red
+
+markdown_extensions:
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      auto_title: true
+      linenums: true
