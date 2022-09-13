@@ -19,8 +19,8 @@ int sock_fd, g_id = 0;
 fd_set curr_sock, fd_read, fd_write;
 char str[64 * 4096], tmp[64 * 4096], buf[64 * (4096 + 1)];
 
-void write_fd(int fd, char* msg) {
-  write(fd, msg, strlen(msg));
+void write_fd(int fd, char* s) {
+  write(fd, s, strlen(s));
 }
 void fatal() {
   write_fd(2, "Fatal error\n");
@@ -33,7 +33,7 @@ int get_id(int fd) {
 
   while (curs) {
     if (curs->fd == fd)
-      return (curs->id);
+      return curs->id;
     curs = curs->next;
   }
   return -1;
@@ -51,13 +51,13 @@ int get_max_fd() {
   return max;
 }
 
-void send_all_except(int fd, char* msg) {
+void send_all_except(int fd, char* s) {
   t_client* curs = g_clients;
 
   while (curs) {
     // 쓰기 설정된 소켓에만 골라서 보냄
     if (curs->fd != fd && FD_ISSET(curs->fd, &fd_write)) {
-      if (send(curs->fd, msg, strlen(msg), 0) == -1)
+      if (send(curs->fd, s, strlen(s), 0) == -1)
         fatal();
     }
     curs = curs->next;
@@ -67,15 +67,10 @@ void send_all_except(int fd, char* msg) {
 // 새 클라이언트 만들어 리스트에 추가
 int insert_client(int fd) {
   t_client *curs = g_clients, *new;
-  t_client cons = {
-      .id = g_id++,
-      .fd = fd,
-      .next = NULL,
-  };
 
   if (!(new = malloc(sizeof(t_client))))
     fatal();
-  *new = cons;
+  *new = (t_client){.id = g_id++, .fd = fd, .next = NULL};
 
   if (!g_clients) {  // 리스트가 비어있으면 첫 원소로
     g_clients = new;
@@ -99,7 +94,7 @@ int delete_client(int fd) {
     while (curs && curs->next && curs->next->fd != fd)
       curs = curs->next;
     del = curs->next;
-    curs->next = curs->next->next;
+    curs->next = del->next;
     free(del);
   }
   return id;
@@ -117,7 +112,7 @@ void accept_connection(void) {
     fatal();
 
   // 버퍼에 환영 메시지 작성 후 송신
-  memset(&buf, 0, 64);
+  memset(buf, 0, 64);
   sprintf(buf, "server: client %d just arrived\n", insert_client(client_fd));
   send_all_except(client_fd, buf);
 
@@ -127,7 +122,7 @@ void accept_connection(void) {
 
 void close_connection(int fd) {
   // 버퍼에 퇴장 메시지 작성 후 송신
-  memset(&buf, 0, 64);
+  memset(buf, 0, 64);
   sprintf(buf, "server: client %d just left\n", delete_client(fd));
   send_all_except(fd, buf);
 
@@ -199,7 +194,7 @@ int main(int ac, char* av[]) {
     if (select(get_max_fd() + 1, &fd_read, &fd_write, NULL, NULL) < 0)
       continue;
     for (int fd = 0; fd <= get_max_fd(); fd++) {
-      if (FD_ISSET(fd, &fd_read)) {  // 이벤트가 생긴 파일 식별자만 골라서
+      if (FD_ISSET(fd, &fd_read)) {  // 이벤트가 생긴 *읽기* 파일 식별자만
         if (fd == sock_fd) {  // 소켓 식별자 자체에서 생긴 이벤트면
           accept_connection();  // 연결이 들어온것이니 사용자 생성
           break;                // 연결 목록이 변했으니 새로고침
