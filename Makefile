@@ -1,6 +1,6 @@
 TARGET := mini
 
-SRC := mini_serv.test.c #mini_serv.c
+SRC := mini_serv.c
 OBJ := $(SRC:.c=.o)
 
 CFLAGS := -Wall -Wextra -Werror -Wpedantic -std=c99 -g
@@ -10,3 +10,9 @@ $(TARGET): $(OBJ)
 
 run: $(TARGET)
 	./$(TARGET) 9999
+
+clean:
+	$(RM) $(OBJ)
+
+re: clean
+	$(MAKE) $(TARGET)

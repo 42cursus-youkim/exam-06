@@ -16,7 +16,7 @@ typedef struct s_client {
 
 t_client* g_clients = NULL;
 int sock_fd, g_id = 0;
-fd_set curr_sock, fd_read, fd_write;
+fd_set fd_all, fd_read, fd_write;
 char str[64 * 4096], tmp[64 * 4096], buf[64 * (4096 + 1)];
 
 void write_fd(int fd, char* s) {
@@ -117,7 +117,7 @@ void accept_connection(void) {
   send_all_except(client_fd, buf);
 
   // 새로운 클라이언트의 소켓을 curr_sock 목록에 추가
-  FD_SET(client_fd, &curr_sock);
+  FD_SET(client_fd, &fd_all);
 }
 
 void close_connection(int fd) {
@@ -127,7 +127,7 @@ void close_connection(int fd) {
   send_all_except(fd, buf);
 
   // 소켓을 curr_sock 목록에서 제거 후 접속 종료
-  FD_CLR(fd, &curr_sock);
+  FD_CLR(fd, &fd_all);
   close(fd);
 }
 
@@ -178,8 +178,8 @@ int main(int ac, char* av[]) {
     fatal();
 
   // fd_set 초기화
-  FD_ZERO(&curr_sock);          // 초기화
-  FD_SET(sock_fd, &curr_sock);  // 소켓 fd 추가
+  FD_ZERO(&fd_all);          // 초기화
+  FD_SET(sock_fd, &fd_all);  // 소켓 fd 추가
 
   // 버퍼 초기화
   memset(str, 0, sizeof(str));
@@ -189,7 +189,7 @@ int main(int ac, char* av[]) {
   // 메인 루프
   while (true) {
     // 듣기/쓰기 소켓 변동 목록 초기화
-    fd_write = fd_read = curr_sock;
+    fd_write = fd_read = fd_all;
     // 들어온 이벤트가 생길 때까지 대기
     if (select(get_max_fd() + 1, &fd_read, &fd_write, NULL, NULL) < 0)
       continue;
